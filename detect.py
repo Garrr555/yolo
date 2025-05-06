@@ -1,21 +1,45 @@
+from ultralytics import YOLO
+import cv2
 import os
-from pathlib import Path
-from yolov5 import detect
+from glob import glob
 
-# Path ke folder uji
-image_dir = Path('data/test_images')
+# Load model
+model = YOLO("runs/detect/train2/weights/best.pt")
 
-# Ambil semua file gambar dari subfolder cats/ dan dogs/
-image_paths = list(image_dir.rglob('*.jpg')) + list(image_dir.rglob('*.png'))
+# Folder input dan output
+input_folder = "test"
+output_folder = "output"
+os.makedirs(output_folder, exist_ok=True)
 
-# Konversi ke list string path (YOLO butuh list path string atau glob)
-image_paths = [str(p) for p in image_paths]
+# Ambil semua gambar JPG
+image_paths = glob(os.path.join(input_folder, "*.jpg"))
 
-# Jalankan deteksi (contoh menggunakan torch.hub)
-import torch
+# Cek jika tidak ada gambar
+if not image_paths:
+    raise FileNotFoundError("Tidak ada gambar .jpg di folder test/")
 
-model = torch.hub.load('ultralytics/yolov5', 'yolov5s', pretrained=True)
-results = model(image_paths)
+# Mapping ID ke label
+names = model.names
 
-# Simpan hasil
-results.save()  # akan tersimpan di runs/detect/
+# Loop setiap gambar
+for img_path in image_paths:
+    print(f"\nMendeteksi objek pada: {img_path}")
+    results = model(img_path)
+
+    # Hitung jumlah objek
+    counts = {}
+    for result in results:
+        for box in result.boxes:
+            cls_id = int(box.cls)
+            label = names[cls_id]
+            counts[label] = counts.get(label, 0) + 1
+
+    print("Jumlah objek terdeteksi:")
+    for label, count in counts.items():
+        print(f"  {label}: {count}")
+
+    # Simpan gambar hasil deteksi ke folder output/
+    result_img = results[0].plot()
+    output_path = os.path.join(output_folder, os.path.basename(img_path))
+    cv2.imwrite(output_path, result_img)
+    print(f"Hasil disimpan ke: {output_path}")
